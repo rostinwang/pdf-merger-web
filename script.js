@@ -8,7 +8,17 @@ const mergeBtn = document.getElementById('mergeBtn');
 const splitBtn = document.getElementById('splitBtn');
 const downloadLink = document.getElementById('downloadLink');
 
+// --- 模態視窗相關元素 ---
+const splitModal = document.getElementById('splitModal');
+const closeButton = splitModal.querySelector('.close-button');
+const splitFileName = document.getElementById('splitFileName');
+const pageRangeInput = document.getElementById('pageRangeInput');
+const executeSplitBtn = document.getElementById('executeSplitBtn');
+const cancelSplitBtn = document.getElementById('cancelSplitBtn');
+const splitMessage = document.getElementById('splitMessage');
+
 let uploadedFiles = []; // 用於儲存已上傳的檔案物件
+let selectedFileForSplit = null; // 用於儲存當前要分割的檔案
 
 // 輔助函數：格式化檔案大小
 function formatBytes(bytes, decimals = 2) {
@@ -49,7 +59,12 @@ function renderFileList() {
 function handleFiles(files) {
     for (const file of files) {
         if (file.type === 'application/pdf') {
-            uploadedFiles.push(file);
+            // 避免重複上傳同名檔案，可以進一步優化為檢查檔案內容或唯一ID
+            if (!uploadedFiles.some(f => f.name === file.name && f.size === file.size)) {
+                uploadedFiles.push(file);
+            } else {
+                console.warn(`檔案 "${file.name}" 已存在，已跳過。`);
+            }
         } else {
             alert(`檔案 "${file.name}" 不是 PDF 格式，已跳過。`);
         }
@@ -127,35 +142,142 @@ mergeBtn.addEventListener('click', async () => {
     }
 });
 
-// 分割 PDF 功能 (提示：需要更複雜的互動)
+// --- 分割 PDF 功能及模態視窗邏輯 ---
+
+// 顯示模態視窗
+function showSplitModal(file) {
+    selectedFileForSplit = file;
+    splitFileName.textContent = file.name;
+    pageRangeInput.value = ''; // 清空輸入框
+    splitMessage.style.display = 'none'; // 隱藏消息
+    splitModal.style.display = 'flex'; // 顯示模態視窗 (使用 flex 居中)
+}
+
+// 隱藏模態視窗
+function hideSplitModal() {
+    splitModal.style.display = 'none';
+    selectedFileForSplit = null;
+}
+
+// 分割按鈕點擊事件
 splitBtn.addEventListener('click', async () => {
     if (uploadedFiles.length === 0) {
         alert('請先上傳 PDF 檔案。');
         return;
     }
-    // 這裡需要彈出一個介面讓使用者選擇要分割的檔案以及分割頁碼範圍
-    // 實現會比較複雜，建議使用模態視窗來引導使用者
-    alert('分割功能需要您選擇要分割的 PDF 以及指定頁碼範圍，這將在未來的版本中實現。');
-    // 示範基本的分割邏輯（此處為單個檔案分割成多個文件，實際應用中會更複雜）
-    // try {
-    //     const file = uploadedFiles[0]; // 假設只處理第一個檔案
-    //     const arrayBuffer = await file.arrayBuffer();
-    //     const pdfDoc = await PDFDocument.load(arrayBuffer);
-    //     const totalPages = pdfDoc.getPageCount();
 
-    //     for (let i = 0; i < totalPages; i++) {
-    //         const newPdf = await PDFDocument.create();
-    //         const [copiedPage] = await newPdf.copyPages(pdfDoc, [i]);
-    //         newPdf.addPage(copiedPage);
-    //         const pdfBytes = await newPdf.save();
-    //         downloadPdf(pdfBytes, `${file.name.replace('.pdf', '')}_page_${i + 1}.pdf`);
-    //     }
-    //     alert('PDF 分割成功！');
-    // } catch (error) {
-    //     console.error('分割 PDF 時發生錯誤：', error);
-    //     alert('分割 PDF 失敗，請檢查檔案或稍後再試。');
-    // }
+    if (uploadedFiles.length > 1) {
+        // 如果有多個檔案，提示使用者選擇一個
+        // 更友善的介面應該是讓使用者在列表中點擊 "分割" 按鈕
+        alert('目前只支援分割單個檔案。請先移除多餘檔案或選擇要分割的檔案。');
+        // 作為一個臨時方案，我們這裡只處理第一個上傳的檔案
+        showSplitModal(uploadedFiles[0]);
+    } else {
+        showSplitModal(uploadedFiles[0]);
+    }
 });
+
+// 關閉模態視窗按鈕
+closeButton.addEventListener('click', hideSplitModal);
+cancelSplitBtn.addEventListener('click', hideSplitModal);
+
+// 當點擊模態視窗外部時關閉
+window.addEventListener('click', (event) => {
+    if (event.target == splitModal) {
+        hideSplitModal();
+    }
+});
+
+// 解析頁碼範圍字串
+// 範例輸入: "1-5, 7, 9-10"
+// 輸出: [1, 2, 3, 4, 5, 7, 9, 10] (已排序且去重)
+function parsePageRanges(rangeStr, totalPages) {
+    const pages = new Set(); // 使用 Set 來自動去重
+    const parts = rangeStr.split(',').map(part => part.trim()).filter(part => part !== '');
+
+    for (const part of parts) {
+        if (part.includes('-')) {
+            const [start, end] = part.split('-').map(Number);
+            if (isNaN(start) || isNaN(end) || start < 1 || end > totalPages || start > end) {
+                throw new Error(`無效的頁碼範圍: ${part}`);
+            }
+            for (let i = start; i <= end; i++) {
+                pages.add(i);
+            }
+        } else {
+            const pageNum = Number(part);
+            if (isNaN(pageNum) || pageNum < 1 || pageNum > totalPages) {
+                throw new Error(`無效的頁碼: ${part}`);
+            }
+            pages.add(pageNum);
+        }
+    }
+    return Array.from(pages).sort((a, b) => a - b); // 排序並轉為陣列
+}
+
+// 執行分割按鈕點擊事件
+executeSplitBtn.addEventListener('click', async () => {
+    const pageRangeStr = pageRangeInput.value.trim();
+    if (!pageRangeStr) {
+        displaySplitMessage('error', '請輸入要分割的頁碼範圍。');
+        return;
+    }
+
+    if (!selectedFileForSplit) {
+        displaySplitMessage('error', '沒有選取要分割的檔案。');
+        return;
+    }
+
+    splitMessage.style.display = 'none'; // 隱藏之前的消息
+    executeSplitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 分割中...';
+    executeSplitBtn.disabled = true;
+    cancelSplitBtn.disabled = true;
+
+    try {
+        const arrayBuffer = await selectedFileForSplit.arrayBuffer();
+        const pdfDoc = await PDFDocument.load(arrayBuffer);
+        const totalPages = pdfDoc.getPageCount();
+
+        let pagesToExtract;
+        try {
+            pagesToExtract = parsePageRanges(pageRangeStr, totalPages);
+        } catch (error) {
+            displaySplitMessage('error', `頁碼輸入錯誤：${error.message}`);
+            return;
+        }
+        
+        if (pagesToExtract.length === 0) {
+            displaySplitMessage('error', '沒有有效的頁碼可以分割。');
+            return;
+        }
+
+        // 創建新的 PDF 文檔
+        const newPdf = await PDFDocument.create();
+        const copiedPages = await newPdf.copyPages(pdfDoc, pagesToExtract.map(p => p - 1)); // PDF-LIB 頁碼是從 0 開始
+
+        copiedPages.forEach((page) => newPdf.addPage(page));
+
+        const pdfBytes = await newPdf.save();
+        downloadPdf(pdfBytes, `${selectedFileForSplit.name.replace('.pdf', '')}_分割後.pdf`);
+        
+        displaySplitMessage('success', 'PDF 分割成功！檔案已下載。');
+        setTimeout(hideSplitModal, 2000); // 2秒後自動關閉模態視窗
+    } catch (error) {
+        console.error('分割 PDF 時發生錯誤：', error);
+        displaySplitMessage('error', `分割 PDF 失敗：${error.message || error}`);
+    } finally {
+        executeSplitBtn.innerHTML = '<i class="fas fa-cut"></i> 開始分割';
+        executeSplitBtn.disabled = false;
+        cancelSplitBtn.disabled = false;
+    }
+});
+
+// 顯示模態視窗中的消息
+function displaySplitMessage(type, message) {
+    splitMessage.textContent = message;
+    splitMessage.className = `split-message ${type}`; // 設置 class
+    splitMessage.style.display = 'block';
+}
 
 // 下載 PDF 輔助函數
 function downloadPdf(bytes, filename) {
