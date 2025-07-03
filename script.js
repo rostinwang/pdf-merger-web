@@ -6,9 +6,6 @@
 const { PDFDocument } = PDFLib;
 
 // PDF.js workerSrc 配置 (重要!)
-// 確保這是正確的 worker 檔案路徑
-// 如果您本地開發或部署，可能需要將 worker 檔案放在正確的相對路徑
-// 這裡使用 CDN 路徑，與 HTML 中的引入一致
 if (typeof pdfjsLib !== 'undefined') {
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.mjs';
 } else {
@@ -17,29 +14,28 @@ if (typeof pdfjsLib !== 'undefined') {
 
 const dropArea = document.getElementById('drop-area');
 const fileElem = document.getElementById('fileElem');
-const fileTableBody = document.getElementById('fileTableBody'); // 修改為 ID
+const fileTableBody = document.getElementById('fileTableBody');
 const noFilesMessage = document.getElementById('noFilesMessage');
 const mergeBtn = document.getElementById('mergeBtn');
-const splitBtn = document.getElementById('splitBtn');
+const splitBtn = document.getElementById('splitBtn'); // 主分割按鈕
 const downloadLink = document.getElementById('downloadLink');
-const clearAllFilesBtn = document.getElementById('clearAllFilesBtn'); // 新增清空按鈕
+const clearAllFilesBtn = document.getElementById('clearAllFilesBtn');
 
-// --- 模態視窗相關元素 (維持不變) ---
-const splitModal = document.getElementById('splitModal');
-const closeButton = splitModal.querySelector('.close-button');
-const splitFileName = document.getElementById('splitFileName');
-const pageRangeInput = document.getElementById('pageRangeInput');
-const executeSplitBtn = document.getElementById('executeSplitBtn');
-const cancelSplitBtn = document.getElementById('cancelSplitBtn');
+// --- 分割面板相關元素 ---
+const splitPanel = document.getElementById('splitPanel'); // 分割操作面板
+const selectedSplitFileName = document.getElementById('selectedSplitFileName');
+const splitPageRangeInput = document.getElementById('splitPageRangeInput');
+const executeSplitBtn = document.getElementById('executeSplitBtn'); // 開始分割按鈕
+const cancelSplitSelectionBtn = document.getElementById('cancelSplitSelectionBtn'); // 取消選擇按鈕
 const splitMessage = document.getElementById('splitMessage');
 
 let uploadedFiles = []; // 用於儲存已上傳的檔案物件
-let selectedFileForSplit = null; // 用於儲存當前要分割的檔案
+let selectedFileForSplit = null; // 用於儲存當前要分割的檔案物件 (不是索引)
 
 // --- 拖曳排序相關變數 ---
 let draggedItem = null;
 
-// 輔助函數：格式化檔案大小 (維持不變)
+// 輔助函數：格式化檔案大小
 function formatBytes(bytes, decimals = 2) {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
@@ -86,14 +82,14 @@ async function generateThumbnail(file, rowElement) {
 
         const thumbnailContainer = rowElement.querySelector('.thumbnail-container');
         if (thumbnailContainer) {
-            thumbnailContainer.innerHTML = ''; // 清空可能存在的內容
+            thumbnailContainer.innerHTML = '';
             thumbnailContainer.appendChild(img);
         }
     } catch (error) {
         console.error('生成縮圖失敗:', error);
         const thumbnailContainer = rowElement.querySelector('.thumbnail-container');
         if (thumbnailContainer) {
-            thumbnailContainer.innerHTML = '<i class="fas fa-file-pdf" style="font-size: 2em; color: #888;"></i>'; // 顯示預設圖標
+            thumbnailContainer.innerHTML = '<i class="fas fa-file-pdf" style="font-size: 2em; color: #888;"></i>';
         }
     }
 }
@@ -101,25 +97,36 @@ async function generateThumbnail(file, rowElement) {
 
 // 渲染檔案列表
 function renderFileList() {
-    fileTableBody.innerHTML = ''; // 清空現有列表
+    fileTableBody.innerHTML = '';
+    // 清除所有行的 selected-for-split 類名
+    document.querySelectorAll('.file-table tbody tr').forEach(row => {
+        row.classList.remove('selected-for-split');
+    });
+
     if (uploadedFiles.length === 0) {
         noFilesMessage.style.display = 'block';
-        mergeBtn.disabled = true; // 沒有檔案時禁用按鈕
+        mergeBtn.disabled = true;
         splitBtn.disabled = true;
-        clearAllFilesBtn.disabled = true; // 禁用清空按鈕
+        clearAllFilesBtn.disabled = true;
+        hideSplitPanel(); // 沒有檔案時隱藏分割面板
         return;
     } else {
         noFilesMessage.style.display = 'none';
         mergeBtn.disabled = false;
         splitBtn.disabled = false;
-        clearAllFilesBtn.disabled = false; // 啟用清空按鈕
+        clearAllFilesBtn.disabled = false;
     }
 
     uploadedFiles.forEach((file, index) => {
         const row = fileTableBody.insertRow();
-        row.dataset.index = index; // 儲存索引以便移除
-        row.draggable = true; // 設置為可拖曳
-        row.classList.add('draggable-row'); // 添加一個類名用於 CSS 和 JS 選擇器
+        row.dataset.index = index; // 將 index 存入 dataset
+        row.draggable = true;
+        row.classList.add('draggable-row');
+
+        // 檢查當前檔案是否為被選擇的分割檔案，並添加樣式
+        if (selectedFileForSplit && selectedFileForSplit === file) {
+            row.classList.add('selected-for-split');
+        }
 
         row.innerHTML = `
             <td>
@@ -129,7 +136,10 @@ function renderFileList() {
             </td>
             <td>${file.name}</td>
             <td>${formatBytes(file.size)}</td>
-            <td><button class="remove-btn" data-index="${index}"><i class="fas fa-trash"></i> 移除</button></td>
+            <td>
+                <button class="remove-btn" data-index="${index}"><i class="fas fa-trash"></i> 移除</button>
+                <button class="split-row-btn" data-index="${index}"><i class="fas fa-cut"></i> 分割</button>
+            </td>
         `;
         // 非同步生成縮圖
         generateThumbnail(file, row);
@@ -141,7 +151,6 @@ function renderFileList() {
 function handleFiles(files) {
     for (const file of files) {
         if (file.type === 'application/pdf') {
-            // 避免重複上傳同名檔案，可以進一步優化為檢查檔案內容或唯一ID
             if (!uploadedFiles.some(f => f.name === file.name && f.size === file.size)) {
                 uploadedFiles.push(file);
             } else {
@@ -154,7 +163,7 @@ function handleFiles(files) {
     renderFileList();
 }
 
-// 拖曳事件監聽器 (保持不變)
+// 拖曳上傳區域事件 (維持不變)
 dropArea.addEventListener('dragover', (e) => {
     e.preventDefault();
     dropArea.classList.add('highlight');
@@ -171,29 +180,46 @@ dropArea.addEventListener('drop', (e) => {
     handleFiles(files);
 });
 
-// 點擊選擇檔案 (保持不變)
+// 點擊選擇檔案 (維持不變)
 fileElem.addEventListener('change', (e) => {
     const files = e.target.files;
     handleFiles(files);
 });
 
-// 移除檔案 (保持不變)
+// 檔案列表中的按鈕點擊事件 (包含移除和單行分割按鈕)
 fileTableBody.addEventListener('click', (e) => {
-    if (e.target.classList.contains('remove-btn') || e.target.closest('.remove-btn')) {
-        const btn = e.target.closest('.remove-btn');
-        const indexToRemove = parseInt(btn.dataset.index);
-        
-        uploadedFiles.splice(indexToRemove, 1);
-        
-        renderFileList();
+    const target = e.target;
+    const rowBtn = target.closest('button'); // 找到最近的按鈕
+
+    if (!rowBtn) return; // 如果沒有點到按鈕，直接返回
+
+    const index = parseInt(rowBtn.dataset.index);
+    const file = uploadedFiles[index];
+
+    if (rowBtn.classList.contains('remove-btn')) {
+        // 移除檔案
+        if (confirm(`確定要移除檔案 "${file.name}" 嗎？`)) {
+            uploadedFiles.splice(index, 1);
+            // 如果移除的檔案是當前選中要分割的檔案，則隱藏分割面板
+            if (selectedFileForSplit === file) {
+                selectedFileForSplit = null;
+                hideSplitPanel();
+            }
+            renderFileList();
+        }
+    } else if (rowBtn.classList.contains('split-row-btn')) {
+        // 單行分割按鈕
+        showSplitPanelForFile(file);
     }
 });
+
 
 // 清空所有檔案
 clearAllFilesBtn.addEventListener('click', () => {
     if (confirm('確定要清空所有已上傳的檔案嗎？')) {
-        uploadedFiles = []; // 清空陣列
-        renderFileList(); // 重新渲染列表
+        uploadedFiles = [];
+        selectedFileForSplit = null; // 清空時也重置分割選擇
+        renderFileList();
     }
 });
 
@@ -206,7 +232,7 @@ mergeBtn.addEventListener('click', async () => {
 
     mergeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 合併中...';
     mergeBtn.disabled = true;
-    splitBtn.disabled = true;
+    splitBtn.disabled = true; // 禁用主分割按鈕
     clearAllFilesBtn.disabled = true;
 
     try {
@@ -232,48 +258,57 @@ mergeBtn.addEventListener('click', async () => {
     }
 });
 
-// --- 分割 PDF 功能及模態視窗邏輯 (維持不變) ---
+// --- 分割 PDF 操作面板邏輯 ---
 
-// 顯示模態視窗
-function showSplitModal(file) {
+// 顯示分割面板並設置選定的檔案
+function showSplitPanelForFile(file) {
     selectedFileForSplit = file;
-    splitFileName.textContent = file.name;
-    pageRangeInput.value = ''; // 清空輸入框
-    splitMessage.style.display = 'none'; // 隱藏消息
-    splitModal.style.display = 'flex'; // 顯示模態視窗 (使用 flex 居中)
+    selectedSplitFileName.textContent = file.name;
+    splitPageRangeInput.value = ''; // 清空輸入框
+    splitMessage.style.display = 'none'; // 隱藏之前的消息
+    splitPanel.style.display = 'block'; // 顯示面板
+
+    // 高亮顯示被選中的檔案行
+    document.querySelectorAll('.file-table tbody tr').forEach(row => {
+        row.classList.remove('selected-for-split');
+        if (uploadedFiles[parseInt(row.dataset.index)] === file) {
+            row.classList.add('selected-for-split');
+        }
+    });
+
+    // 滾動到分割面板，讓使用者看到
+    splitPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-// 隱藏模態視窗
-function hideSplitModal() {
-    splitModal.style.display = 'none';
-    selectedFileForSplit = null;
+// 隱藏分割面板
+function hideSplitPanel() {
+    splitPanel.style.display = 'none';
+    selectedFileForSplit = null; // 清空選中的檔案
+    // 移除所有行的 selected-for-split 類名
+    document.querySelectorAll('.file-table tbody tr').forEach(row => {
+        row.classList.remove('selected-for-split');
+    });
 }
 
-// 分割按鈕點擊事件 (維持不變)
-splitBtn.addEventListener('click', async () => {
+// 主分割按鈕點擊事件 (僅用於引導選擇)
+splitBtn.addEventListener('click', () => {
     if (uploadedFiles.length === 0) {
         alert('請先上傳 PDF 檔案。');
         return;
     }
-
-    if (uploadedFiles.length > 1) {
-        alert('目前只支援分割單個檔案。請先移除多餘檔案或選擇要分割的檔案。');
-        showSplitModal(uploadedFiles[0]); // 臨時方案，自動選取第一個
+    // 如果只有一個檔案，則自動選取該檔案並顯示面板
+    if (uploadedFiles.length === 1) {
+        showSplitPanelForFile(uploadedFiles[0]);
     } else {
-        showSplitModal(uploadedFiles[0]);
+        alert('請點擊檔案列表旁邊的「分割」按鈕來選擇要分割的檔案。');
+        // 可以滾動到檔案列表，或閃爍一下列表
+        fileTableBody.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 });
 
-// 關閉模態視窗按鈕 (維持不變)
-closeButton.addEventListener('click', hideSplitModal);
-cancelSplitBtn.addEventListener('click', hideSplitModal);
+// 取消選擇按鈕
+cancelSplitSelectionBtn.addEventListener('click', hideSplitPanel);
 
-// 當點擊模態視窗外部時關閉 (維持不變)
-window.addEventListener('click', (event) => {
-    if (event.target == splitModal) {
-        hideSplitModal();
-    }
-});
 
 // 解析頁碼範圍字串 (維持不變)
 function parsePageRanges(rangeStr, totalPages) {
@@ -300,23 +335,23 @@ function parsePageRanges(rangeStr, totalPages) {
     return Array.from(pages).sort((a, b) => a - b);
 }
 
-// 執行分割按鈕點擊事件 (維持不變)
+// 執行分割按鈕點擊事件 (在面板中)
 executeSplitBtn.addEventListener('click', async () => {
-    const pageRangeStr = pageRangeInput.value.trim();
+    const pageRangeStr = splitPageRangeInput.value.trim();
     if (!pageRangeStr) {
         displaySplitMessage('error', '請輸入要分割的頁碼範圍。');
         return;
     }
 
     if (!selectedFileForSplit) {
-        displaySplitMessage('error', '沒有選取要分割的檔案。');
+        displaySplitMessage('error', '沒有選取要分割的檔案。請先在列表中選擇一個。');
         return;
     }
 
     splitMessage.style.display = 'none';
     executeSplitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 分割中...';
     executeSplitBtn.disabled = true;
-    cancelSplitBtn.disabled = true;
+    cancelSplitSelectionBtn.disabled = true; // 禁用取消按鈕
 
     try {
         const arrayBuffer = await selectedFileForSplit.arrayBuffer();
@@ -336,8 +371,10 @@ executeSplitBtn.addEventListener('click', async () => {
             return;
         }
 
+        // 創建新的 PDF 文檔
         const newPdf = await PDFDocument.create();
-        const copiedPages = await newPdf.copyPages(pdfDoc, pagesToExtract.map(p => p - 1)); // PDF-LIB 頁碼是從 0 開始
+        // PDF-LIB 的頁碼是從 0 開始，所以要減 1
+        const copiedPages = await newPdf.copyPages(pdfDoc, pagesToExtract.map(p => p - 1)); 
 
         copiedPages.forEach((page) => newPdf.addPage(page));
 
@@ -345,21 +382,27 @@ executeSplitBtn.addEventListener('click', async () => {
         downloadPdf(pdfBytes, `${selectedFileForSplit.name.replace('.pdf', '')}_分割後.pdf`);
         
         displaySplitMessage('success', 'PDF 分割成功！檔案已下載。');
-        setTimeout(hideSplitModal, 2000);
+        // 成功後延遲隱藏面板，並重置狀態
+        setTimeout(() => {
+            hideSplitPanel();
+            splitPageRangeInput.value = ''; // 清空輸入框
+            displaySplitMessage('success', ''); // 清空訊息
+        }, 2000); 
+
     } catch (error) {
         console.error('分割 PDF 時發生錯誤：', error);
         displaySplitMessage('error', `分割 PDF 失敗：${error.message || error}`);
     } finally {
         executeSplitBtn.innerHTML = '<i class="fas fa-cut"></i> 開始分割';
         executeSplitBtn.disabled = false;
-        cancelSplitBtn.disabled = false;
+        cancelSplitSelectionBtn.disabled = false; // 重新啟用取消按鈕
     }
 });
 
-// 顯示模態視窗中的消息 (維持不變)
+// 顯示訊息輔助函數 (適用於分割面板)
 function displaySplitMessage(type, message) {
     splitMessage.textContent = message;
-    splitMessage.className = `split-message ${type}`; // 設置 class
+    splitMessage.className = `split-message ${type}`;
     splitMessage.style.display = 'block';
 }
 
@@ -373,7 +416,7 @@ function downloadPdf(bytes, filename) {
     URL.revokeObjectURL(url);
 }
 
-// --- 拖曳排序邏輯 ---
+// --- 拖曳排序邏輯 (維持不變) ---
 function addDragListeners() {
     const rows = fileTableBody.querySelectorAll('tr.draggable-row');
     rows.forEach(row => {
@@ -386,16 +429,15 @@ function addDragListeners() {
 }
 
 function handleDragStart(e) {
-    draggedItem = this; // 'this' 指向被拖曳的行
+    draggedItem = this;
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/html', this.innerHTML);
-    this.classList.add('dragging'); // 添加拖曳中的樣式
+    this.classList.add('dragging');
 }
 
 function handleDragOver(e) {
-    e.preventDefault(); // 允許放下
+    e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    // 視覺提示：在拖曳目標上方或下方顯示一個線
     const targetRow = this;
     if (targetRow && targetRow !== draggedItem) {
         const bounding = targetRow.getBoundingClientRect();
@@ -424,18 +466,15 @@ function handleDrop(e) {
         const draggedIndex = parseInt(draggedItem.dataset.index);
         const targetIndex = parseInt(this.dataset.index);
 
-        // 更新 uploadedFiles 陣列中的順序
         const [movedFile] = uploadedFiles.splice(draggedIndex, 1);
         uploadedFiles.splice(targetIndex, 0, movedFile);
 
-        // 重新渲染整個列表以反映新順序和更新索引
         renderFileList();
     }
 }
 
 function handleDragEnd() {
     this.classList.remove('dragging');
-    // 清除所有行的邊框樣式，以防萬一
     fileTableBody.querySelectorAll('tr').forEach(row => {
         row.style.borderTop = '';
         row.style.borderBottom = '';
@@ -444,5 +483,5 @@ function handleDragEnd() {
 }
 
 
-// 初始化時檢查是否有檔案並添加拖曳監聽器
+// 初始化時渲染列表並添加監聽器
 renderFileList();
