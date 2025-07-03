@@ -24,15 +24,17 @@
             <table id="fileTable" class="file-table">
                 <thead>
                     <tr>
-                        <th>檔案名稱</th>
+                        <th>預覽</th> <th>檔案名稱</th>
                         <th>大小</th>
                         <th>操作</th>
                     </tr>
                 </thead>
-                <tbody>
-                    </tbody>
+                <tbody id="fileTableBody"> </tbody>
             </table>
             <p id="noFilesMessage" class="no-files-message">目前沒有上傳的檔案。</p>
+            <button id="clearAllFilesBtn" class="btn btn-tertiary" style="margin-top: 15px;">
+                <i class="fas fa-trash-alt"></i> 清空所有檔案
+            </button>
         </div>
 
         <div class="button-group">
@@ -68,8 +70,10 @@
             <div id="splitMessage" class="split-message"></div>
         </div>
     </div>
-    
+
     <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs" type="module"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.mjs" type="module"></script>
     <script src="script.js"></script>
 </body>
 </html>
