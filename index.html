@@ -5,14 +5,47 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PDF 合併與分割工具</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 </head>
 <body>
-    <h1>PDF 工具</h1>
-    <input type="file" id="pdfInput" multiple accept=".pdf">
-    <button id="mergeBtn">合併 PDF</button>
-    <button id="splitBtn">分割 PDF</button>
+    <div class="container">
+        <h1>PDF 工具</h1>
 
-    <a id="downloadLink" download="output.pdf" style="display:none;">下載 PDF</a>
+        <div id="drop-area" class="drop-area">
+            <input type="file" id="fileElem" multiple accept=".pdf" style="display:none">
+            <label for="fileElem">
+                <i class="fas fa-cloud-upload-alt upload-icon"></i>
+                <p>將檔案拖曳到此處，或點擊此處選擇檔案</p>
+            </label>
+        </div>
+
+        <div class="file-list-container">
+            <h2>已上傳的 PDF 檔案</h2>
+            <table id="fileTable" class="file-table">
+                <thead>
+                    <tr>
+                        <th>檔案名稱</th>
+                        <th>大小</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    </tbody>
+            </table>
+            <p id="noFilesMessage" class="no-files-message">目前沒有上傳的檔案。</p>
+        </div>
+
+        <div class="button-group">
+            <button id="mergeBtn" class="btn btn-primary">
+                <i class="fas fa-file-pdf"></i> 合併 PDF
+            </button>
+            <button id="splitBtn" class="btn btn-secondary">
+                <i class="fas fa-cut"></i> 分割 PDF
+            </button>
+        </div>
+
+        <a id="downloadLink" download="output.pdf" style="display:none;"></a>
+    </div>
 
     <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
     <script src="script.js"></script>

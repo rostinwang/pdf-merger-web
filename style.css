@@ -1,0 +1,194 @@
+/* 通用樣式 */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f8f9fa; /* 淺灰色背景 */
+    color: #333;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start; /* 從頂部開始排列 */
+    min-height: 100vh;
+    padding-top: 50px; /* 頂部間距 */
+}
+
+.container {
+    background-color: #ffffff;
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    max-width: 900px;
+    width: 95%;
+    text-align: center;
+    box-sizing: border-box;
+}
+
+h1 {
+    color: #007bff; /* 主藍色 */
+    margin-bottom: 30px;
+    font-size: 2.5em;
+    font-weight: 600;
+}
+
+h2 {
+    color: #555;
+    margin-top: 40px;
+    margin-bottom: 20px;
+    font-size: 1.8em;
+    font-weight: 500;
+}
+
+/* 拖曳上傳區域 */
+.drop-area {
+    border: 3px dashed #a0d8ff; /* 淺藍色虛線邊框 */
+    border-radius: 10px;
+    padding: 40px 20px;
+    margin-bottom: 30px;
+    cursor: pointer;
+    transition: background-color 0.3s ease, border-color 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 150px;
+}
+
+.drop-area:hover,
+.drop-area.highlight {
+    background-color: #e9f5ff; /* 淺藍色背景 */
+    border-color: #007bff; /* 主藍色實線 */
+}
+
+.drop-area label {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+}
+
+.upload-icon {
+    font-size: 4em;
+    color: #007bff; /* 主藍色圖標 */
+    margin-bottom: 15px;
+}
+
+.drop-area p {
+    font-size: 1.2em;
+    color: #666;
+    margin: 0;
+}
+
+/* 檔案列表表格 */
+.file-list-container {
+    margin-bottom: 40px;
+}
+
+.file-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    border-radius: 8px;
+    overflow: hidden; /* 確保圓角生效 */
+}
+
+.file-table thead {
+    background-color: #007bff; /* 表頭主藍色 */
+    color: white;
+}
+
+.file-table th,
+.file-table td {
+    padding: 15px;
+    text-align: left;
+    border-bottom: 1px solid #e9ecef; /* 淺灰色邊框 */
+}
+
+.file-table th {
+    font-weight: 600;
+    font-size: 1.1em;
+}
+
+.file-table tbody tr:nth-child(even) {
+    background-color: #f8f9fa; /* 隔行換色 */
+}
+
+.file-table tbody tr:hover {
+    background-color: #e2f2ff; /* 懸停效果 */
+}
+
+.file-table .remove-btn {
+    background: none;
+    border: none;
+    color: #dc3545; /* 紅色用於刪除 */
+    cursor: pointer;
+    font-size: 1.1em;
+    transition: color 0.2s ease;
+}
+
+.file-table .remove-btn:hover {
+    color: #c82333;
+}
+
+.no-files-message {
+    color: #888;
+    margin-top: 20px;
+    font-size: 1.1em;
+}
+
+/* 按鈕組 */
+.button-group {
+    display: flex;
+    justify-content: center;
+    gap: 20px; /* 按鈕間距 */
+    margin-top: 30px;
+}
+
+.btn {
+    padding: 15px 30px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1.2em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 10px; /* 圖標與文字間距 */
+}
+
+.btn-primary {
+    background-color: #007bff; /* 主藍色 */
+    color: white;
+    box-shadow: 0 4px 10px rgba(0, 123, 255, 0.3);
+}
+
+.btn-primary:hover {
+    background-color: #0056b3; /* 較深的藍色 */
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(0, 123, 255, 0.4);
+}
+
+.btn-secondary {
+    background-color: #28a745; /* 綠色 */
+    color: white;
+    box-shadow: 0 4px 10px rgba(40, 167, 69, 0.3);
+}
+
+.btn-secondary:hover {
+    background-color: #218838; /* 較深的綠色 */
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(40, 167, 69, 0.4);
+}
+
+/* 下載連結樣式 */
+#downloadLink {
+    margin-top: 30px;
+    display: inline-block; /* 預設隱藏，但為了在 JS 中顯示時能有 block 屬性 */
+    text-decoration: none;
+    color: #007bff;
+    font-weight: bold;
+}
